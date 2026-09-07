@@ -8,7 +8,30 @@ interface CustomerLoginResponse {
   full_name: string;
 }
 
+export interface RegisterPayload {
+  full_name: string;
+  phone: string;
+  email: string;
+  village_code: string;
+  password: string;
+  aadhaar_number?: string;
+}
+
 export const customerAuthService = {
+  async register(payload: RegisterPayload): Promise<CustomerLoginResponse> {
+    const { data } = await apiClient.post<CustomerLoginResponse>("/customer-auth/register", payload);
+    tokenStorage.setToken(data.access_token);
+    tokenStorage.setRoles(["CUSTOMER"]);
+    return data;
+  },
+
+  async passwordLogin(phone: string, password: string): Promise<CustomerLoginResponse> {
+    const { data } = await apiClient.post<CustomerLoginResponse>("/customer-auth/login", { phone, password });
+    tokenStorage.setToken(data.access_token);
+    tokenStorage.setRoles(["CUSTOMER"]);
+    return data;
+  },
+
   async requestOtp(phone: string): Promise<void> {
     await apiClient.post("/customer-auth/otp/request", { phone });
   },

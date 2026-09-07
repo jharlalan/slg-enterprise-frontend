@@ -11,6 +11,8 @@ import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { PaymentQRGenerator } from "@/components/portal/PaymentQRGenerator";
 import { ClaimSubmissionForm } from "@/components/portal/ClaimSubmissionForm";
 import { ClaimHistoryList } from "@/components/portal/ClaimHistoryList";
+import { PhoneChangeCard } from "@/components/portal/PhoneChangeCard";
+import { EmailUpdateCard } from "@/components/portal/EmailUpdateCard";
 import { portalService } from "@/services/portalService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing } from "@/theme/tokens";
@@ -61,6 +63,8 @@ export default function PortalPage() {
   return (
     <main style={{ minHeight: "100vh", background: colors.huskCream, padding: spacing.lg }}>
       <BilingualLabel hi={customer.full_name} en="My Account" size="displayHeading" weight="bold" layout="stacked" />
+      <PhoneChangeCard currentPhone={customer.phone} onChanged={loadAll} />
+      <EmailUpdateCard currentEmail={customer.email ?? null} onChanged={loadAll} />
 
       <div style={{ background: colors.white, borderRadius: radii.tile, padding: spacing.lg, marginTop: spacing.lg }}>
         <div style={{ color: colors.textSecondary }}>बकाया / Outstanding Balance</div>

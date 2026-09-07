@@ -30,4 +30,16 @@ export const portalService = {
     const { data } = await apiClient.get<ApiEnvelope<PaymentClaim[]>>("/portal/payment-claims");
     return data.data;
   },
+
+  async requestPhoneChangeOtp(newPhone: string): Promise<void> {
+    await apiClient.post("/portal/phone/request-otp", { new_phone: newPhone });
+  },
+
+  async confirmPhoneChange(newPhone: string, otpCode: string): Promise<void> {
+    await apiClient.post("/portal/phone/confirm", { new_phone: newPhone, otp_code: otpCode });
+  },
+
+  async updateEmail(email: string): Promise<void> {
+    await apiClient.put("/portal/email", { email });
+  },
 };

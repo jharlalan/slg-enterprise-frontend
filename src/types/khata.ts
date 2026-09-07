@@ -17,6 +17,7 @@ export interface CustomerDetail {
   customer_id: string;
   full_name: string;
   phone: string;
+  email?: string | null;
   village_code: string;
   current_debt: number;
   credit_limit: number | null;

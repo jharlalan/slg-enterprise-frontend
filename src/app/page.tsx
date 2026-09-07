@@ -8,11 +8,19 @@
  */
 "use client";
 
+import { useEffect, useState } from "react";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { ServiceTile } from "@/components/ui/ServiceTile";
+import { tokenStorage } from "@/services/tokenStorage";
 import { categoryAccents, colors, spacing } from "@/theme/tokens";
 
 export default function HomePage() {
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    setIsOwner(tokenStorage.getRoles().includes("OWNER"));
+  }, []);
+
   return (
     <main
       style={{
@@ -53,6 +61,23 @@ export default function HomePage() {
           >
             📱 मेरा खाता / My Account
           </a>
+          {isOwner && (
+            <a
+              href="/staff/create-cashier"
+              style={{
+                padding: `${spacing.sm} ${spacing.md}`,
+                borderRadius: "999px",
+                background: colors.harvestGold,
+                border: `1px solid ${colors.harvestGold}`,
+                color: colors.white,
+                textDecoration: "none",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              ➕ कैशियर / Add Cashier
+            </a>
+          )}
         </div>
         <BilingualLabel
           hi="एस.एल.जी. एंटरप्राइज़"
