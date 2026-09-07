@@ -63,6 +63,23 @@ export default function HomePage() {
           </a>
           {isOwner && (
             <a
+              href="/dashboard"
+              style={{
+                padding: `${spacing.sm} ${spacing.md}`,
+                borderRadius: "999px",
+                background: colors.leafGreen,
+                border: `1px solid ${colors.leafGreen}`,
+                color: colors.white,
+                textDecoration: "none",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              📊 डैशबोर्ड / Dashboard
+            </a>
+          )}
+          {isOwner && (
+            <a
               href="/staff/create-cashier"
               style={{
                 padding: `${spacing.sm} ${spacing.md}`,
