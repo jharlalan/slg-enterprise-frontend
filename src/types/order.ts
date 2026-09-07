@@ -14,6 +14,7 @@ export interface OrderCreatePayload {
   items: OrderItemRequest[];
   amount_paid: number;
   payment_mode: PaymentMode;
+  discount_percent?: number;
 }
 
 export interface OrderItemOut {
@@ -34,6 +35,8 @@ export interface Order {
   customer_code: string | null;
   items: OrderItemOut[];
   gross_total: number;
+  discount_percent: number;
+  discount_amount: number;
   net_total: number;
   amount_paid: number;
   debt_added: number;

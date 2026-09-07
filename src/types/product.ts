@@ -28,6 +28,14 @@ export interface ProductCreatePayload {
   barcode?: string;
 }
 
+export interface ProductUpdatePayload {
+  name?: string;
+  category?: ProductCategory;
+  cost_price?: number;
+  default_selling_price?: number;
+  low_stock_threshold?: number;
+}
+
 export interface StockIntakePayload {
   quantity: number;
   notes?: string;

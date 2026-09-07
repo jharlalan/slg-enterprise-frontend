@@ -60,8 +60,37 @@ export function createApiClient(baseURL: string): AxiosInstance {
     (response) => response,
     (error: AxiosError<ApiErrorEnvelope>) => {
       const envelope = error.response?.data;
+      const status = error.response?.status;
+
       if (envelope && envelope.success === false) {
-        return Promise.reject(new ApiError(envelope.error));
+        const apiError = new ApiError(envelope.error);
+
+        // Two distinct ways "you're not properly logged in" shows up:
+        //   401 -> our own AuthException family (expired/invalid token)
+        //   422 with an "authorization" message -> the Authorization
+        //     header was missing from the request entirely (no token
+        //     stored at all) — a raw FastAPI validation error, not one
+        //     of our AppException codes, so it has to be matched on
+        //     the message text rather than a clean error code.
+        // Either way, showing the raw backend text to the user isn't
+        // useful — redirecting straight to login is the correct
+        // recovery for both cases. NOT done for 403 (INSUFFICIENT_PERMISSION):
+        // that means logged in but wrong role, which is a real message
+        // worth showing, not a session problem to redirect away from.
+        const sessionIsMissingOrInvalid =
+          status === 401 || (status === 422 && /authorization/i.test(apiError.message));
+
+        if (sessionIsMissingOrInvalid && typeof window !== "undefined") {
+          const authPages = ["/login", "/portal/login", "/portal/register"];
+          const alreadyOnAuthPage = authPages.includes(window.location.pathname);
+          if (!alreadyOnAuthPage) {
+            tokenStorage.clear();
+            const loginPath = window.location.pathname.startsWith("/portal") ? "/portal/login" : "/login";
+            window.location.href = loginPath;
+          }
+        }
+
+        return Promise.reject(apiError);
       }
       // Network error, timeout, or a non-standard error shape
       return Promise.reject(

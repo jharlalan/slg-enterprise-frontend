@@ -1,17 +1,19 @@
 /**
- * Inventory screen — goods intake, barcode scan-to-find, and a
- * low-stock alert strip. Product tiles reuse the same icon-first
- * ServiceTile pattern as the home screen for visual consistency.
+ * Inventory screen — goods intake, barcode scan-to-find, a low-stock
+ * alert strip, and now (previously missing entirely) an actual
+ * Add/Edit Product form. Available to both Owner and Cashier — see
+ * ProductFormModal's docstring for the exact permission decisions.
  */
 "use client";
 
 import { useEffect, useState } from "react";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { ServiceTile } from "@/components/ui/ServiceTile";
-import { BarcodeScannerListener } from "@/components/pos/BarcodeScannerListener";
+import { BarcodeScannerListener } from "@/components/shared/BarcodeScannerListener";
+import { ProductFormModal, type ProductFormValues } from "@/components/inventory/ProductFormModal";
 import { productService } from "@/services/productService";
 import { ApiError } from "@/services/apiClient";
-import { categoryAccents, colors, spacing } from "@/theme/tokens";
+import { categoryAccents, colors, radii, spacing } from "@/theme/tokens";
 import type { Product } from "@/types/product";
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -26,6 +28,11 @@ export default function InventoryPage() {
   const [lowStock, setLowStock] = useState<Product[]>([]);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -61,16 +68,78 @@ export default function InventoryPage() {
     }
   }
 
+  function openAddForm() {
+    setEditingProduct(null);
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  function openEditForm(product: Product) {
+    setEditingProduct(product);
+    setFormError(null);
+    setShowForm(true);
+  }
+
+  async function handleSaveProduct(values: ProductFormValues) {
+    setSaving(true);
+    setFormError(null);
+    try {
+      if (editingProduct) {
+        await productService.update(editingProduct.id, {
+          name: values.name,
+          category: values.category,
+          cost_price: parseFloat(values.cost_price),
+          default_selling_price: parseFloat(values.default_selling_price),
+          low_stock_threshold: parseFloat(values.low_stock_threshold),
+        });
+      } else {
+        await productService.create({
+          name: values.name,
+          category: values.category,
+          unit_of_measure: values.unit_of_measure,
+          cost_price: parseFloat(values.cost_price),
+          default_selling_price: parseFloat(values.default_selling_price),
+          stock_quantity: parseFloat(values.stock_quantity) || 0,
+          low_stock_threshold: parseFloat(values.low_stock_threshold) || 0,
+          barcode: values.barcode || undefined,
+        });
+      }
+      setShowForm(false);
+      await refresh();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "सहेजने में त्रुटि / Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <BarcodeScannerListener onScan={handleScan} global>
       <main style={{ minHeight: "100vh", background: colors.huskCream, padding: spacing.lg }}>
-        <BilingualLabel
-          hi="खाद, बीज और अनाज सूची"
-          en="Goods Inventory"
-          size="displayHeading"
-          weight="bold"
-          layout="stacked"
-        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: spacing.sm }}>
+          <BilingualLabel
+            hi="खाद, बीज और अनाज सूची"
+            en="Goods Inventory"
+            size="displayHeading"
+            weight="bold"
+            layout="stacked"
+          />
+          <button
+            onClick={openAddForm}
+            style={{
+              padding: `${spacing.sm} ${spacing.md}`,
+              borderRadius: radii.pill,
+              border: "none",
+              background: colors.leafGreen,
+              color: colors.white,
+              fontWeight: 700,
+              cursor: "pointer",
+              minHeight: spacing.tapTargetMin,
+            }}
+          >
+            ➕ नया उत्पाद / Add Product
+          </button>
+        </div>
 
         <div
           style={{
@@ -129,10 +198,20 @@ export default function InventoryPage() {
                   categoryAccents.other
                 }
                 price={`₹${product.default_selling_price.toFixed(2)}`}
-                disabled={product.is_low_stock}
+                onClick={() => openEditForm(product)}
               />
             ))}
         </section>
+
+        {showForm && (
+          <ProductFormModal
+            editingProduct={editingProduct}
+            onSave={handleSaveProduct}
+            onClose={() => setShowForm(false)}
+            saving={saving}
+            error={formError}
+          />
+        )}
       </main>
     </BarcodeScannerListener>
   );

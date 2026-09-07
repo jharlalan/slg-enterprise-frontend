@@ -4,12 +4,20 @@
  * (zero down payment, full khata). Customer phone/name/village only
  * become required inputs once SPLIT or CREDIT is selected, mirroring
  * the backend's own validation (an anonymous walk-in can't go on credit).
+ *
+ * Also shows the % discount input and the gross → discount → grand
+ * total breakdown — discount is applied before any payment-mode
+ * validation, so amountPaid/SPLIT math always operates on the
+ * post-discount grand total, matching the backend's own calculation.
  */
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { colors, radii, spacing } from "@/theme/tokens";
 import type { PaymentMode } from "@/types/order";
 
 export type PaymentPanelProps = {
+  grossTotal: number;
+  discountPercent: number;
+  onDiscountPercentChange: (percent: number) => void;
   netTotal: number;
   paymentMode: PaymentMode;
   amountPaid: number;
@@ -46,8 +54,40 @@ export function PaymentPanel(props: PaymentPanelProps) {
       }}
     >
       <BilingualLabel hi="कुल राशि" en="Total" weight="bold" size="heading" />
-      <div style={{ fontSize: "2rem", fontWeight: 700, color: colors.harvestGold, margin: `${spacing.sm} 0` }}>
-        ₹{props.netTotal.toFixed(2)}
+
+      <div style={{ marginTop: spacing.sm, display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", color: colors.textSecondary }}>
+          <span>उप-योग / Subtotal</span>
+          <span>₹{props.grossTotal.toFixed(2)}</span>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: colors.textSecondary }}>छूट % / Discount %</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="0.1"
+            value={props.discountPercent || ""}
+            onChange={(e) => props.onDiscountPercentChange(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+            placeholder="0"
+            style={{ width: "80px", padding: spacing.sm, borderRadius: radii.button, border: `1px solid ${colors.border}`, textAlign: "right" }}
+          />
+        </div>
+
+        {props.discountPercent > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", color: colors.danger }}>
+            <span>छूट राशि / Discount Amount</span>
+            <span>−₹{(props.grossTotal - props.netTotal).toFixed(2)}</span>
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${colors.border}`, paddingTop: "4px", marginTop: "4px" }}>
+          <BilingualLabel hi="कुल देय" en="Grand Total" weight="bold" size="body" />
+          <span style={{ fontSize: "1.5rem", fontWeight: 700, color: colors.harvestGold }}>
+            ₹{props.netTotal.toFixed(2)}
+          </span>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.md }}>

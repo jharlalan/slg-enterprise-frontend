@@ -62,6 +62,18 @@ export function ThermalReceipt({ order, shopName = "SLG Enterprise" }: ThermalRe
       ))}
 
       <hr />
+      {order.discount_amount > 0 && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>उप-योग / Subtotal</span>
+            <span>₹{order.gross_total.toFixed(2)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>छूट {order.discount_percent}% / Discount</span>
+            <span>−₹{order.discount_amount.toFixed(2)}</span>
+          </div>
+        </>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold" }}>
         <span>कुल / Total</span>
         <span>₹{order.net_total.toFixed(2)}</span>

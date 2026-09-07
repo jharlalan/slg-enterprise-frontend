@@ -11,8 +11,9 @@
 "use client";
 
 import { useState } from "react";
-import { BarcodeScannerListener } from "@/components/pos/BarcodeScannerListener";
+import { BarcodeScannerListener } from "@/components/shared/BarcodeScannerListener";
 import { CartTable } from "@/components/pos/CartTable";
+import { ManualAddPanel } from "@/components/pos/ManualAddPanel";
 import { PriceOverrideModal } from "@/components/pos/PriceOverrideModal";
 import { PaymentPanel } from "@/components/pos/PaymentPanel";
 import { ThermalReceipt } from "@/components/print/ThermalReceipt";
@@ -23,6 +24,7 @@ import { orderService } from "@/services/orderService";
 import { ApiError } from "@/services/apiClient";
 import { colors, spacing } from "@/theme/tokens";
 import type { CartLine, Order, PaymentMode } from "@/types/order";
+import type { Product } from "@/types/product";
 
 export default function POSPage() {
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
@@ -31,6 +33,7 @@ export default function POSPage() {
 
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
   const [amountPaid, setAmountPaid] = useState(0);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerFullName, setCustomerFullName] = useState("");
   const [villageCode, setVillageCode] = useState("");
@@ -39,38 +42,46 @@ export default function POSPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  const netTotal = cartLines.reduce(
+  const grossTotal = cartLines.reduce(
     (sum, line) => sum + (line.overridePrice ?? line.defaultPrice) * line.quantity,
     0
   );
+  const netTotal = Math.round((grossTotal * (1 - discountPercent / 100)) * 100) / 100;
 
-  async function handleScan(barcode: string) {
+  function addProductToCart(product: Product) {
+    setCartLines((prev) => {
+      const existing = prev.find((l) => l.barcode === product.barcode);
+      if (existing) {
+        if (existing.quantity >= product.stock_quantity) return prev; // can't exceed stock
+        return prev.map((l) =>
+          l.barcode === product.barcode ? { ...l, quantity: l.quantity + 1 } : l
+        );
+      }
+      return [
+        ...prev,
+        {
+          barcode: product.barcode,
+          productId: product.id,
+          name: product.name,
+          unit: product.unit_of_measure,
+          defaultPrice: product.default_selling_price,
+          quantity: 1,
+          availableStock: product.stock_quantity,
+        },
+      ];
+    });
+  }
+
+  async function handleScan(barcode: string): Promise<{ success: boolean; message: string }> {
     setScanError(null);
     try {
       const product = await productService.getByBarcode(barcode);
-      setCartLines((prev) => {
-        const existing = prev.find((l) => l.barcode === barcode);
-        if (existing) {
-          if (existing.quantity >= product.stock_quantity) return prev; // can't exceed stock
-          return prev.map((l) =>
-            l.barcode === barcode ? { ...l, quantity: l.quantity + 1 } : l
-          );
-        }
-        return [
-          ...prev,
-          {
-            barcode: product.barcode,
-            productId: product.id,
-            name: product.name,
-            unit: product.unit_of_measure,
-            defaultPrice: product.default_selling_price,
-            quantity: 1,
-            availableStock: product.stock_quantity,
-          },
-        ];
-      });
+      addProductToCart(product);
+      return { success: true, message: product.name };
     } catch (err) {
-      setScanError(err instanceof ApiError ? `${err.message} (${barcode})` : "स्कैन विफल / Scan failed");
+      const message = err instanceof ApiError ? `${err.message} (${barcode})` : "स्कैन विफल / Scan failed";
+      setScanError(message);
+      return { success: false, message };
     }
   }
 
@@ -104,11 +115,19 @@ export default function POSPage() {
   async function handleCustomerPhoneChange(phone: string) {
     setCustomerPhone(phone);
     if (phone.length >= 10) {
-      const existing = await customerService.findByPhone(phone);
-      setIsNewCustomer(!existing);
-      if (existing) {
-        setCustomerFullName(existing.full_name);
-        setVillageCode(existing.village_code);
+      try {
+        const existing = await customerService.findByPhone(phone);
+        setIsNewCustomer(!existing);
+        if (existing) {
+          setCustomerFullName(existing.full_name);
+          setVillageCode(existing.village_code);
+        }
+      } catch (err) {
+        // Non-fatal: if lookup fails (e.g. session expired), just treat
+        // as a new customer and let the cashier type details manually —
+        // don't crash the page over a background lookup.
+        setSubmitError(err instanceof ApiError ? err.message : null);
+        setIsNewCustomer(true);
       }
     }
   }
@@ -132,6 +151,7 @@ export default function POSPage() {
         })),
         amount_paid: paymentMode === "CASH" || paymentMode === "UPI" ? netTotal : amountPaid,
         payment_mode: paymentMode,
+        discount_percent: discountPercent,
       });
       setCompletedOrder(order);
     } catch (err) {
@@ -149,6 +169,7 @@ export default function POSPage() {
     setVillageCode("");
     setPaymentMode("CASH");
     setAmountPaid(0);
+    setDiscountPercent(0);
   }
 
   if (completedOrder) {
@@ -187,16 +208,25 @@ export default function POSPage() {
             alignItems: "start",
           }}
         >
-          <CartTable
-            lines={cartLines}
-            onQuantityChange={handleQuantityChange}
-            onRemove={handleRemove}
-            onRequestPriceOverride={(barcode) =>
-              setOverrideTarget(cartLines.find((l) => l.barcode === barcode) ?? null)
-            }
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: spacing.md }}>
+            <ManualAddPanel
+              onAddByBarcode={handleScan}
+              onAddProduct={addProductToCart}
+            />
+            <CartTable
+              lines={cartLines}
+              onQuantityChange={handleQuantityChange}
+              onRemove={handleRemove}
+              onRequestPriceOverride={(barcode) =>
+                setOverrideTarget(cartLines.find((l) => l.barcode === barcode) ?? null)
+              }
+            />
+          </div>
 
           <PaymentPanel
+            grossTotal={grossTotal}
+            discountPercent={discountPercent}
+            onDiscountPercentChange={setDiscountPercent}
             netTotal={netTotal}
             paymentMode={paymentMode}
             amountPaid={amountPaid}

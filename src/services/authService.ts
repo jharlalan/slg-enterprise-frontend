@@ -13,6 +13,7 @@ export const authService = {
     const { data } = await apiClient.post<LoginResponse>("/auth/login", { username, password });
     tokenStorage.setToken(data.access_token);
     tokenStorage.setRoles(data.roles);
+    tokenStorage.setDisplayName(data.username);
     return data;
   },
 

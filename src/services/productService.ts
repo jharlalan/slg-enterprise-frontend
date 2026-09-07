@@ -2,6 +2,7 @@ import { apiClient } from "@/services/apiClient";
 import type {
   Product,
   ProductCreatePayload,
+  ProductUpdatePayload,
   StockAdjustmentPayload,
   StockIntakePayload,
 } from "@/types/product";
@@ -26,6 +27,11 @@ export const productService = {
 
   async create(payload: ProductCreatePayload): Promise<Product> {
     const { data } = await apiClient.post<ApiEnvelope<Product>>("/products", payload);
+    return data.data;
+  },
+
+  async update(productId: string, payload: ProductUpdatePayload): Promise<Product> {
+    const { data } = await apiClient.patch<ApiEnvelope<Product>>(`/products/${productId}`, payload);
     return data.data;
   },
 

@@ -22,6 +22,7 @@ export const customerAuthService = {
     const { data } = await apiClient.post<CustomerLoginResponse>("/customer-auth/register", payload);
     tokenStorage.setToken(data.access_token);
     tokenStorage.setRoles(["CUSTOMER"]);
+    tokenStorage.setDisplayName(data.full_name);
     return data;
   },
 
@@ -29,6 +30,7 @@ export const customerAuthService = {
     const { data } = await apiClient.post<CustomerLoginResponse>("/customer-auth/login", { phone, password });
     tokenStorage.setToken(data.access_token);
     tokenStorage.setRoles(["CUSTOMER"]);
+    tokenStorage.setDisplayName(data.full_name);
     return data;
   },
 
@@ -43,6 +45,7 @@ export const customerAuthService = {
     });
     tokenStorage.setToken(data.access_token);
     tokenStorage.setRoles(["CUSTOMER"]);
+    tokenStorage.setDisplayName(data.full_name);
     return data;
   },
 

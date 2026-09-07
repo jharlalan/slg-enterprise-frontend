@@ -9,6 +9,7 @@
  */
 import type { Metadata } from "next";
 import { Poppins, Noto_Sans_Devanagari } from "next/font/google";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { colors } from "@/theme/tokens";
 
 const poppins = Poppins({
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${poppins.variable} ${notoDevanagari.variable}`}
         style={{ margin: 0, background: colors.huskCream }}
       >
+        <AppHeader />
         {children}
       </body>
     </html>

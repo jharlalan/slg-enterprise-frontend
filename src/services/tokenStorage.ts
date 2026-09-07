@@ -1,5 +1,6 @@
 const TOKEN_KEY = "slg_auth_token";
 const ROLES_KEY = "slg_auth_roles";
+const DISPLAY_NAME_KEY = "slg_auth_display_name";
 
 export const tokenStorage = {
   setToken(token: string) {
@@ -17,10 +18,18 @@ export const tokenStorage = {
     const raw = window.localStorage.getItem(ROLES_KEY);
     return raw ? JSON.parse(raw) : [];
   },
+  setDisplayName(name: string) {
+    if (typeof window !== "undefined") window.localStorage.setItem(DISPLAY_NAME_KEY, name);
+  },
+  getDisplayName(): string | null {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(DISPLAY_NAME_KEY);
+  },
   clear() {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(TOKEN_KEY);
       window.localStorage.removeItem(ROLES_KEY);
+      window.localStorage.removeItem(DISPLAY_NAME_KEY);
     }
   },
 };
