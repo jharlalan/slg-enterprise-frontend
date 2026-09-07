@@ -1,4 +1,5 @@
 import { apiClient } from "@/services/apiClient";
+import { tokenStorage } from "@/services/tokenStorage";
 
 export interface LoginResponse {
   access_token: string;
@@ -7,34 +8,23 @@ export interface LoginResponse {
   username: string;
 }
 
-const TOKEN_KEY = "slg_auth_token";
-const ROLES_KEY = "slg_auth_roles";
-
 export const authService = {
   async login(username: string, password: string): Promise<LoginResponse> {
     const { data } = await apiClient.post<LoginResponse>("/auth/login", { username, password });
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(TOKEN_KEY, data.access_token);
-      window.localStorage.setItem(ROLES_KEY, JSON.stringify(data.roles));
-    }
+    tokenStorage.setToken(data.access_token);
+    tokenStorage.setRoles(data.roles);
     return data;
   },
 
   logout(): void {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(TOKEN_KEY);
-      window.localStorage.removeItem(ROLES_KEY);
-    }
+    tokenStorage.clear();
   },
 
   getRoles(): string[] {
-    if (typeof window === "undefined") return [];
-    const raw = window.localStorage.getItem(ROLES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return tokenStorage.getRoles();
   },
 
   isLoggedIn(): boolean {
-    if (typeof window === "undefined") return false;
-    return Boolean(window.localStorage.getItem(TOKEN_KEY));
+    return Boolean(tokenStorage.getToken());
   },
 };

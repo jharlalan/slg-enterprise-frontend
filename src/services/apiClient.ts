@@ -8,6 +8,7 @@
  *   of parsing `error.response.data.error.code` inline everywhere.
  */
 import axios, { AxiosError, AxiosInstance } from "axios";
+import { tokenStorage } from "@/services/tokenStorage";
 
 export type ApiErrorEnvelope = {
   success: false;
@@ -34,8 +35,7 @@ export class ApiError extends Error {
 }
 
 function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("slg_auth_token");
+  return tokenStorage.getToken();
 }
 
 function generateCorrelationId(): string {

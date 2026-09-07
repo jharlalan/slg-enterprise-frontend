@@ -10,11 +10,14 @@
 import { useEffect, useState } from "react";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { OverviewPanel } from "@/components/khata/OverviewPanel";
+import { PaymentClaimsQueue } from "@/components/khata/PaymentClaimsQueue";
 import { StatementPanel } from "@/components/khata/StatementPanel";
 import { khataService } from "@/services/khataService";
+import { verificationService } from "@/services/verificationService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing } from "@/theme/tokens";
 import type { AgingEntry, CustomerDetail, CustomerStatement, VillageDebtSummary } from "@/types/khata";
+import type { PaymentClaim } from "@/types/portal";
 
 export default function KhataPage() {
   const [customers, setCustomers] = useState<CustomerDetail[]>([]);
@@ -22,7 +25,17 @@ export default function KhataPage() {
   const [selectedStatement, setSelectedStatement] = useState<CustomerStatement | null>(null);
   const [villageSummary, setVillageSummary] = useState<VillageDebtSummary[]>([]);
   const [aging, setAging] = useState<AgingEntry[]>([]);
+  const [pendingClaims, setPendingClaims] = useState<PaymentClaim[]>([]);
+  const [showVerificationQueue, setShowVerificationQueue] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function loadPendingClaims() {
+    try {
+      setPendingClaims(await verificationService.listPending());
+    } catch {
+      /* non-fatal for the overview */
+    }
+  }
 
   async function loadOverview() {
     try {
@@ -34,6 +47,7 @@ export default function KhataPage() {
       setCustomers(customerList);
       setVillageSummary(villages);
       setAging(agingData);
+      await loadPendingClaims();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "लोड करने में त्रुटि / Failed to load");
     }
@@ -54,6 +68,7 @@ export default function KhataPage() {
   }
 
   async function selectCustomer(customerId: string) {
+    setShowVerificationQueue(false);
     try {
       const statement = await khataService.getStatement(customerId);
       setSelectedStatement(statement);
@@ -91,18 +106,38 @@ export default function KhataPage() {
             }}
           />
           <button
-            onClick={() => setSelectedStatement(null)}
+            onClick={() => {
+              setSelectedStatement(null);
+              setShowVerificationQueue(false);
+            }}
             style={{
               width: "100%",
               padding: spacing.sm,
               marginBottom: spacing.sm,
               borderRadius: radii.button,
               border: `1px solid ${colors.border}`,
-              background: !selectedStatement ? `${colors.leafGreen}18` : colors.white,
+              background: !selectedStatement && !showVerificationQueue ? `${colors.leafGreen}18` : colors.white,
               cursor: "pointer",
             }}
           >
             📊 अवलोकन / Overview
+          </button>
+          <button
+            onClick={() => {
+              setSelectedStatement(null);
+              setShowVerificationQueue(true);
+            }}
+            style={{
+              width: "100%",
+              padding: spacing.sm,
+              marginBottom: spacing.sm,
+              borderRadius: radii.button,
+              border: `1px solid ${colors.border}`,
+              background: showVerificationQueue ? `${colors.sevaTeal}18` : colors.white,
+              cursor: "pointer",
+            }}
+          >
+            🧾 सत्यापन ({pendingClaims.length}) / Verify
           </button>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "60vh", overflowY: "auto" }}>
             {customers.map((c) => (
@@ -129,6 +164,8 @@ export default function KhataPage() {
 
         {selectedStatement ? (
           <StatementPanel statement={selectedStatement} onRefresh={refreshSelected} />
+        ) : showVerificationQueue ? (
+          <PaymentClaimsQueue claims={pendingClaims} onReviewed={loadPendingClaims} />
         ) : (
           <OverviewPanel villageSummary={villageSummary} aging={aging} onSelectCustomer={selectCustomer} />
         )}
