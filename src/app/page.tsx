@@ -21,7 +21,39 @@ export default function HomePage() {
         padding: spacing.lg,
       }}
     >
-      <header style={{ marginBottom: spacing.xl, textAlign: "center" }}>
+      <header style={{ marginBottom: spacing.xl, textAlign: "center", position: "relative" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: spacing.sm }}>
+          <a
+            href="/login"
+            style={{
+              padding: `${spacing.sm} ${spacing.md}`,
+              borderRadius: "999px",
+              background: colors.white,
+              border: `1px solid ${colors.border}`,
+              color: colors.textPrimary,
+              textDecoration: "none",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+            }}
+          >
+            👤 स्टाफ / Staff Login
+          </a>
+          <a
+            href="/portal/login"
+            style={{
+              padding: `${spacing.sm} ${spacing.md}`,
+              borderRadius: "999px",
+              background: colors.sevaTealLight,
+              border: `1px solid ${colors.sevaTeal}`,
+              color: colors.sevaTeal,
+              textDecoration: "none",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+            }}
+          >
+            📱 मेरा खाता / My Account
+          </a>
+        </div>
         <BilingualLabel
           hi="एस.एल.जी. एंटरप्राइज़"
           en="SLG Enterprise"
