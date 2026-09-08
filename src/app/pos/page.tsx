@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { BarcodeScannerListener } from "@/components/shared/BarcodeScannerListener";
 import { CartTable } from "@/components/pos/CartTable";
-import { ManualAddPanel } from "@/components/pos/ManualAddPanel";
+import { AddProductLauncher } from "@/components/pos/AddProductLauncher";
 import { PriceOverrideModal } from "@/components/pos/PriceOverrideModal";
 import { PaymentPanel } from "@/components/pos/PaymentPanel";
 import { ThermalReceipt } from "@/components/print/ThermalReceipt";
@@ -33,7 +33,8 @@ export default function POSPage() {
 
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
   const [amountPaid, setAmountPaid] = useState(0);
-  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountMode, setDiscountMode] = useState<"percent" | "amount">("percent");
+  const [discountValue, setDiscountValue] = useState(0);
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerFullName, setCustomerFullName] = useState("");
   const [villageCode, setVillageCode] = useState("");
@@ -46,7 +47,9 @@ export default function POSPage() {
     (sum, line) => sum + (line.overridePrice ?? line.defaultPrice) * line.quantity,
     0
   );
-  const netTotal = Math.round((grossTotal * (1 - discountPercent / 100)) * 100) / 100;
+  const discountAmountValue =
+    discountMode === "amount" ? Math.min(discountValue, grossTotal) : grossTotal * (discountValue / 100);
+  const netTotal = Math.round((grossTotal - discountAmountValue) * 100) / 100;
 
   function addProductToCart(product: Product) {
     setCartLines((prev) => {
@@ -151,7 +154,8 @@ export default function POSPage() {
         })),
         amount_paid: paymentMode === "CASH" || paymentMode === "UPI" ? netTotal : amountPaid,
         payment_mode: paymentMode,
-        discount_percent: discountPercent,
+        discount_percent: discountMode === "percent" ? discountValue : 0,
+        discount_amount: discountMode === "amount" ? discountValue : undefined,
       });
       setCompletedOrder(order);
     } catch (err) {
@@ -169,7 +173,8 @@ export default function POSPage() {
     setVillageCode("");
     setPaymentMode("CASH");
     setAmountPaid(0);
-    setDiscountPercent(0);
+    setDiscountMode("percent");
+    setDiscountValue(0);
   }
 
   if (completedOrder) {
@@ -209,10 +214,12 @@ export default function POSPage() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: spacing.md }}>
-            <ManualAddPanel
-              onAddByBarcode={handleScan}
-              onAddProduct={addProductToCart}
-            />
+            <div>
+              <AddProductLauncher
+                onAddByBarcode={handleScan}
+                onAddProduct={addProductToCart}
+              />
+            </div>
             <CartTable
               lines={cartLines}
               onQuantityChange={handleQuantityChange}
@@ -225,8 +232,10 @@ export default function POSPage() {
 
           <PaymentPanel
             grossTotal={grossTotal}
-            discountPercent={discountPercent}
-            onDiscountPercentChange={setDiscountPercent}
+            discountMode={discountMode}
+            discountValue={discountValue}
+            onDiscountModeChange={setDiscountMode}
+            onDiscountValueChange={setDiscountValue}
             netTotal={netTotal}
             paymentMode={paymentMode}
             amountPaid={amountPaid}

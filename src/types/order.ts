@@ -15,6 +15,7 @@ export interface OrderCreatePayload {
   amount_paid: number;
   payment_mode: PaymentMode;
   discount_percent?: number;
+  discount_amount?: number;
 }
 
 export interface OrderItemOut {

@@ -5,10 +5,12 @@
  * become required inputs once SPLIT or CREDIT is selected, mirroring
  * the backend's own validation (an anonymous walk-in can't go on credit).
  *
- * Also shows the % discount input and the gross → discount → grand
- * total breakdown — discount is applied before any payment-mode
- * validation, so amountPaid/SPLIT math always operates on the
- * post-discount grand total, matching the backend's own calculation.
+ * Also shows the discount input (toggle between % and a flat ₹ amount)
+ * and the gross → discount → grand total breakdown — discount is
+ * applied before any payment-mode validation, so amountPaid/SPLIT math
+ * always operates on the post-discount grand total, matching the
+ * backend's own calculation (which similarly treats % and ₹ as two
+ * alternative inputs, not additive — see billing_service.py).
  */
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { colors, radii, spacing } from "@/theme/tokens";
@@ -16,8 +18,10 @@ import type { PaymentMode } from "@/types/order";
 
 export type PaymentPanelProps = {
   grossTotal: number;
-  discountPercent: number;
-  onDiscountPercentChange: (percent: number) => void;
+  discountMode: "percent" | "amount";
+  discountValue: number;
+  onDiscountModeChange: (mode: "percent" | "amount") => void;
+  onDiscountValueChange: (value: number) => void;
   netTotal: number;
   paymentMode: PaymentMode;
   amountPaid: number;
@@ -61,21 +65,49 @@ export function PaymentPanel(props: PaymentPanelProps) {
           <span>₹{props.grossTotal.toFixed(2)}</span>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: colors.textSecondary }}>छूट % / Discount %</span>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: colors.textSecondary }}>छूट / Discount</span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <button
+                onClick={() => props.onDiscountModeChange("percent")}
+                style={discountModeButtonStyle(props.discountMode === "percent")}
+              >
+                %
+              </button>
+              <button
+                onClick={() => props.onDiscountModeChange("amount")}
+                style={discountModeButtonStyle(props.discountMode === "amount")}
+              >
+                ₹
+              </button>
+            </div>
+          </div>
           <input
             type="number"
             min={0}
-            max={100}
-            step="0.1"
-            value={props.discountPercent || ""}
-            onChange={(e) => props.onDiscountPercentChange(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
-            placeholder="0"
-            style={{ width: "80px", padding: spacing.sm, borderRadius: radii.button, border: `1px solid ${colors.border}`, textAlign: "right" }}
+            max={props.discountMode === "percent" ? 100 : undefined}
+            step={props.discountMode === "percent" ? "0.1" : "1"}
+            value={props.discountValue || ""}
+            onChange={(e) => {
+              const raw = parseFloat(e.target.value) || 0;
+              const clamped = props.discountMode === "percent" ? Math.min(100, Math.max(0, raw)) : Math.max(0, raw);
+              props.onDiscountValueChange(clamped);
+            }}
+            placeholder={props.discountMode === "percent" ? "0" : "0.00"}
+            style={{
+              width: "100%",
+              marginTop: "4px",
+              padding: spacing.sm,
+              borderRadius: radii.button,
+              border: `1px solid ${colors.border}`,
+              textAlign: "right",
+              boxSizing: "border-box",
+            }}
           />
         </div>
 
-        {props.discountPercent > 0 && (
+        {props.discountValue > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", color: colors.danger }}>
             <span>छूट राशि / Discount Amount</span>
             <span>−₹{(props.grossTotal - props.netTotal).toFixed(2)}</span>
@@ -190,3 +222,18 @@ const inputStyle: React.CSSProperties = {
   fontSize: "1rem",
   marginTop: "4px",
 };
+
+function discountModeButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    width: "32px",
+    height: "28px",
+    borderRadius: radii.button,
+    border: `1px solid ${active ? colors.leafGreen : colors.border}`,
+    background: active ? colors.leafGreen : colors.white,
+    color: active ? colors.white : colors.textPrimary,
+    fontWeight: 700,
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    padding: 0,
+  };
+}

@@ -57,4 +57,17 @@ export const productService = {
     );
     return data.data;
   },
+
+  /** Decodes a barcode from an image — the same endpoint serves both
+   * camera captures and file uploads, since by the time it's a Blob/File,
+   * there's no difference between the two sources. */
+  async decodeBarcodeImage(image: Blob): Promise<string> {
+    const form = new FormData();
+    form.append("file", image, "capture.jpg");
+    const { data } = await apiClient.post<ApiEnvelope<{ barcode: string }>>(
+      "/products/barcode/decode",
+      form
+    );
+    return data.data.barcode;
+  },
 };
