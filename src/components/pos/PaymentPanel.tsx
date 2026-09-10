@@ -1,9 +1,16 @@
 /**
  * PaymentPanel — implements the payment split matrix from the spec:
  * CASH/UPI (full settlement), SPLIT (partial + rest to khata), CREDIT
- * (zero down payment, full khata). Customer phone/name/village only
- * become required inputs once SPLIT or CREDIT is selected, mirroring
- * the backend's own validation (an anonymous walk-in can't go on credit).
+ * (zero down payment, full khata).
+ *
+ * Customer identification no longer happens here — it's resolved
+ * upfront by CustomerSelectionStep before any items can even be
+ * added (see pos/page.tsx). This panel only needs to know whether
+ * that resolved customer is anonymous, so CREDIT/SPLIT can be
+ * disabled up front rather than letting a submission fail server-side
+ * (the backend still enforces this too — see OrderCreateRequest's
+ * validator — this is purely a "don't let the cashier hit a wall
+ * they could have avoided" frontend improvement).
  *
  * Also shows the discount input (toggle between % and a flat ₹ amount)
  * and the gross → discount → grand total breakdown — discount is
@@ -25,29 +32,21 @@ export type PaymentPanelProps = {
   netTotal: number;
   paymentMode: PaymentMode;
   amountPaid: number;
-  customerPhone: string;
-  customerFullName: string;
-  villageCode: string;
-  isNewCustomer: boolean;
+  customerIsAnonymous: boolean;
   onPaymentModeChange: (mode: PaymentMode) => void;
   onAmountPaidChange: (amount: number) => void;
-  onCustomerPhoneChange: (phone: string) => void;
-  onCustomerFullNameChange: (name: string) => void;
-  onVillageCodeChange: (code: string) => void;
   onSubmit: () => void;
   submitting: boolean;
 };
 
-const MODES: { mode: PaymentMode; hi: string; en: string }[] = [
-  { mode: "CASH", hi: "नकद", en: "Cash" },
-  { mode: "UPI", hi: "यूपीआई", en: "UPI" },
-  { mode: "SPLIT", hi: "आंशिक", en: "Partial" },
-  { mode: "CREDIT", hi: "पूरा उधार", en: "Full Credit" },
+const MODES: { mode: PaymentMode; hi: string; en: string; needsCustomer: boolean }[] = [
+  { mode: "CASH", hi: "नकद", en: "Cash", needsCustomer: false },
+  { mode: "UPI", hi: "यूपीआई", en: "UPI", needsCustomer: false },
+  { mode: "SPLIT", hi: "आंशिक", en: "Partial", needsCustomer: true },
+  { mode: "CREDIT", hi: "पूरा उधार", en: "Full Credit", needsCustomer: true },
 ];
 
 export function PaymentPanel(props: PaymentPanelProps) {
-  const needsCustomer = props.paymentMode === "SPLIT" || props.paymentMode === "CREDIT";
-
   return (
     <div
       style={{
@@ -123,25 +122,38 @@ export function PaymentPanel(props: PaymentPanelProps) {
       </div>
 
       <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.md }}>
-        {MODES.map(({ mode, hi, en }) => (
-          <button
-            key={mode}
-            onClick={() => props.onPaymentModeChange(mode)}
-            style={{
-              flex: "1 1 auto",
-              minWidth: "80px",
-              padding: spacing.md,
-              borderRadius: radii.button,
-              border: `2px solid ${props.paymentMode === mode ? colors.leafGreen : colors.border}`,
-              background: props.paymentMode === mode ? `${colors.leafGreen}18` : colors.white,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {hi} / {en}
-          </button>
-        ))}
+        {MODES.map(({ mode, hi, en, needsCustomer }) => {
+          const disabled = needsCustomer && props.customerIsAnonymous;
+          return (
+            <button
+              key={mode}
+              onClick={() => !disabled && props.onPaymentModeChange(mode)}
+              disabled={disabled}
+              title={disabled ? "उधार के लिए ग्राहक चुनें / Select a customer for credit" : undefined}
+              style={{
+                flex: "1 1 auto",
+                minWidth: "80px",
+                padding: spacing.md,
+                borderRadius: radii.button,
+                border: `2px solid ${props.paymentMode === mode ? colors.leafGreen : colors.border}`,
+                background: props.paymentMode === mode ? `${colors.leafGreen}18` : colors.white,
+                fontWeight: 700,
+                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled ? 0.4 : 1,
+              }}
+            >
+              {hi} / {en}
+            </button>
+          );
+        })}
       </div>
+
+      {(props.paymentMode === "SPLIT" || props.paymentMode === "CREDIT") && props.customerIsAnonymous && (
+        <p style={{ color: colors.danger, fontSize: "0.85rem", marginTop: spacing.sm }}>
+          उधार के लिए ग्राहक चुनें — ऊपर "बदलें" पर क्लिक करें / Select a customer for credit — click
+          &quot;Change&quot; above
+        </p>
+      )}
 
       {props.paymentMode === "SPLIT" && (
         <div style={{ marginTop: spacing.md }}>
@@ -156,37 +168,6 @@ export function PaymentPanel(props: PaymentPanelProps) {
           <p style={{ color: colors.textSecondary, fontSize: "0.9rem" }}>
             बाकी / Remaining to khata: ₹{Math.max(0, props.netTotal - props.amountPaid).toFixed(2)}
           </p>
-        </div>
-      )}
-
-      {needsCustomer && (
-        <div style={{ marginTop: spacing.md, display: "flex", flexDirection: "column", gap: spacing.sm }}>
-          <BilingualLabel hi="ग्राहक जानकारी" en="Customer details (required for khata)" weight="bold" />
-          <input
-            type="tel"
-            placeholder="फ़ोन नंबर / Phone number"
-            value={props.customerPhone}
-            onChange={(e) => props.onCustomerPhoneChange(e.target.value)}
-            style={inputStyle}
-          />
-          {props.isNewCustomer && (
-            <>
-              <input
-                type="text"
-                placeholder="पूरा नाम / Full name"
-                value={props.customerFullName}
-                onChange={(e) => props.onCustomerFullNameChange(e.target.value)}
-                style={inputStyle}
-              />
-              <input
-                type="text"
-                placeholder="गाँव कोड / Village code (e.g. RAMP)"
-                value={props.villageCode}
-                onChange={(e) => props.onVillageCodeChange(e.target.value.toUpperCase())}
-                style={inputStyle}
-              />
-            </>
-          )}
         </div>
       )}
 

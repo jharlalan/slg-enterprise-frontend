@@ -1,12 +1,16 @@
 /**
  * POS screen — the cashier's main working screen. Flow:
- *   1. Scan (or the barcode listener catches hardware scanner input
+ *   1. Select customer FIRST (search & pick, quick-create, or explicit
+ *      anonymous) — the cart/scan UI stays locked until this resolves.
+ *      A persistent CustomerInfoCard then stays visible throughout.
+ *   2. Scan (or the barcode listener catches hardware scanner input
  *      globally) -> look up product -> add/increment cart line.
- *   2. Adjust quantities via steppers, optionally override a price.
- *   3. Choose payment mode; if SPLIT/CREDIT, identify the customer
- *      (existing customers found by phone auto-fill; new ones need
- *      name + village, matching the backend's auto-onboarding rule).
- *   4. Submit -> receive the created order -> show a printable receipt.
+ *   3. Adjust quantities via steppers, optionally override a price.
+ *   4. Choose payment mode — CREDIT/SPLIT are disabled if the customer
+ *      is anonymous (the backend requires a customer for those modes
+ *      anyway; disabling upfront avoids a failed submission).
+ *   5. Submit -> receive the created order -> show a printable bill
+ *      (ShopBillReceipt, matching the shop's real paper bill format).
  */
 "use client";
 
@@ -16,17 +20,24 @@ import { CartTable } from "@/components/pos/CartTable";
 import { AddProductLauncher } from "@/components/pos/AddProductLauncher";
 import { PriceOverrideModal } from "@/components/pos/PriceOverrideModal";
 import { PaymentPanel } from "@/components/pos/PaymentPanel";
-import { ThermalReceipt } from "@/components/print/ThermalReceipt";
+import { CustomerSelectionStep } from "@/components/pos/CustomerSelectionStep";
+import { CustomerInfoCard } from "@/components/pos/CustomerInfoCard";
+import { ShopBillReceipt } from "@/components/print/ShopBillReceipt";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { productService } from "@/services/productService";
-import { customerService } from "@/services/customerService";
 import { orderService } from "@/services/orderService";
 import { ApiError } from "@/services/apiClient";
 import { colors, spacing } from "@/theme/tokens";
 import type { CartLine, Order, PaymentMode } from "@/types/order";
 import type { Product } from "@/types/product";
+import type { CustomerSummary } from "@/types/customer";
+
+type CustomerChoice = "pending" | "resolved";
 
 export default function POSPage() {
+  const [customerChoice, setCustomerChoice] = useState<CustomerChoice>("pending");
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null); // null + resolved = anonymous
+
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<CartLine | null>(null);
@@ -35,10 +46,6 @@ export default function POSPage() {
   const [amountPaid, setAmountPaid] = useState(0);
   const [discountMode, setDiscountMode] = useState<"percent" | "amount">("percent");
   const [discountValue, setDiscountValue] = useState(0);
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerFullName, setCustomerFullName] = useState("");
-  const [villageCode, setVillageCode] = useState("");
-  const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
@@ -50,6 +57,24 @@ export default function POSPage() {
   const discountAmountValue =
     discountMode === "amount" ? Math.min(discountValue, grossTotal) : grossTotal * (discountValue / 100);
   const netTotal = Math.round((grossTotal - discountAmountValue) * 100) / 100;
+
+  function handleCustomerSelected(customer: CustomerSummary) {
+    setSelectedCustomer(customer);
+    setCustomerChoice("resolved");
+  }
+
+  function handleAnonymous() {
+    setSelectedCustomer(null);
+    setCustomerChoice("resolved");
+  }
+
+  function handleChangeCustomer() {
+    setCustomerChoice("pending");
+    // Cart contents are deliberately preserved — only the customer
+    // choice resets. If the new choice is anonymous and payment mode
+    // was CREDIT/SPLIT, that combination gets caught by the disabled
+    // state in PaymentPanel before submission.
+  }
 
   function addProductToCart(product: Product) {
     setCartLines((prev) => {
@@ -115,26 +140,6 @@ export default function POSPage() {
     setAmountPaid(mode === "CASH" || mode === "UPI" ? netTotal : 0);
   }
 
-  async function handleCustomerPhoneChange(phone: string) {
-    setCustomerPhone(phone);
-    if (phone.length >= 10) {
-      try {
-        const existing = await customerService.findByPhone(phone);
-        setIsNewCustomer(!existing);
-        if (existing) {
-          setCustomerFullName(existing.full_name);
-          setVillageCode(existing.village_code);
-        }
-      } catch (err) {
-        // Non-fatal: if lookup fails (e.g. session expired), just treat
-        // as a new customer and let the cashier type details manually —
-        // don't crash the page over a background lookup.
-        setSubmitError(err instanceof ApiError ? err.message : null);
-        setIsNewCustomer(true);
-      }
-    }
-  }
-
   async function handleSubmit() {
     setSubmitError(null);
     if (cartLines.length === 0) {
@@ -144,9 +149,7 @@ export default function POSPage() {
     setSubmitting(true);
     try {
       const order = await orderService.create({
-        customer_phone: customerPhone || undefined,
-        customer_full_name: customerFullName || undefined,
-        village_code: villageCode || undefined,
+        customer_phone: selectedCustomer?.phone,
         items: cartLines.map((l) => ({
           barcode: l.barcode,
           quantity: l.quantity,
@@ -168,9 +171,8 @@ export default function POSPage() {
   function startNewSale() {
     setCartLines([]);
     setCompletedOrder(null);
-    setCustomerPhone("");
-    setCustomerFullName("");
-    setVillageCode("");
+    setCustomerChoice("pending");
+    setSelectedCustomer(null);
     setPaymentMode("CASH");
     setAmountPaid(0);
     setDiscountMode("percent");
@@ -180,8 +182,8 @@ export default function POSPage() {
   if (completedOrder) {
     return (
       <main style={{ minHeight: "100vh", background: colors.huskCream, padding: spacing.lg }}>
-        <div style={{ maxWidth: "340px", margin: "0 auto" }}>
-          <ThermalReceipt order={completedOrder} />
+        <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+          <ShopBillReceipt order={completedOrder} customer={selectedCustomer} />
           <div style={{ display: "flex", gap: spacing.sm, marginTop: spacing.md }}>
             <button onClick={() => window.print()} style={actionButtonStyle}>
               प्रिंट करें / Print
@@ -200,58 +202,62 @@ export default function POSPage() {
       <main style={{ minHeight: "100vh", background: colors.huskCream, padding: spacing.lg }}>
         <BilingualLabel hi="बिल बनाएं" en="Point of Sale" size="displayHeading" weight="bold" layout="stacked" />
 
+        <div style={{ marginTop: spacing.lg }}>
+          {customerChoice === "pending" ? (
+            <CustomerSelectionStep onSelect={handleCustomerSelected} onAnonymous={handleAnonymous} />
+          ) : (
+            <CustomerInfoCard customer={selectedCustomer} onChange={handleChangeCustomer} />
+          )}
+        </div>
+
         {scanError && (
           <p style={{ color: colors.danger, marginTop: spacing.sm }}>{scanError}</p>
         )}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr",
-            gap: spacing.lg,
-            marginTop: spacing.lg,
-            alignItems: "start",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: spacing.md }}>
-            <div>
-              <AddProductLauncher
-                onAddByBarcode={handleScan}
-                onAddProduct={addProductToCart}
+        {customerChoice === "resolved" && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: spacing.lg,
+              marginTop: spacing.lg,
+              alignItems: "start",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: spacing.md }}>
+              <div>
+                <AddProductLauncher
+                  onAddByBarcode={handleScan}
+                  onAddProduct={addProductToCart}
+                />
+              </div>
+              <CartTable
+                lines={cartLines}
+                onQuantityChange={handleQuantityChange}
+                onRemove={handleRemove}
+                onRequestPriceOverride={(barcode) =>
+                  setOverrideTarget(cartLines.find((l) => l.barcode === barcode) ?? null)
+                }
               />
             </div>
-            <CartTable
-              lines={cartLines}
-              onQuantityChange={handleQuantityChange}
-              onRemove={handleRemove}
-              onRequestPriceOverride={(barcode) =>
-                setOverrideTarget(cartLines.find((l) => l.barcode === barcode) ?? null)
-              }
+
+            <PaymentPanel
+              grossTotal={grossTotal}
+              discountMode={discountMode}
+              discountValue={discountValue}
+              onDiscountModeChange={setDiscountMode}
+              onDiscountValueChange={setDiscountValue}
+              netTotal={netTotal}
+              paymentMode={paymentMode}
+              amountPaid={amountPaid}
+              customerIsAnonymous={selectedCustomer === null}
+              onPaymentModeChange={handlePaymentModeChange}
+              onAmountPaidChange={setAmountPaid}
+              onSubmit={handleSubmit}
+              submitting={submitting}
             />
           </div>
-
-          <PaymentPanel
-            grossTotal={grossTotal}
-            discountMode={discountMode}
-            discountValue={discountValue}
-            onDiscountModeChange={setDiscountMode}
-            onDiscountValueChange={setDiscountValue}
-            netTotal={netTotal}
-            paymentMode={paymentMode}
-            amountPaid={amountPaid}
-            customerPhone={customerPhone}
-            customerFullName={customerFullName}
-            villageCode={villageCode}
-            isNewCustomer={isNewCustomer}
-            onPaymentModeChange={handlePaymentModeChange}
-            onAmountPaidChange={setAmountPaid}
-            onCustomerPhoneChange={handleCustomerPhoneChange}
-            onCustomerFullNameChange={setCustomerFullName}
-            onVillageCodeChange={setVillageCode}
-            onSubmit={handleSubmit}
-            submitting={submitting}
-          />
-        </div>
+        )}
 
         {submitError && <p style={{ color: colors.danger, marginTop: spacing.md }}>{submitError}</p>}
 
