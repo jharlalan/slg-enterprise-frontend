@@ -1,3 +1,7 @@
+import type { CustomerAddress } from "@/types/address";
+
+export type Gender = "male" | "female" | "other";
+
 export interface LedgerEntry {
   id: string;
   transaction_type: "DEBIT" | "CREDIT";
@@ -17,8 +21,14 @@ export interface CustomerDetail {
   customer_id: string;
   full_name: string;
   phone: string;
+  phone_verified?: boolean;
+  email_verified?: boolean;
+  verified?: boolean;
+  gender?: Gender | null;
   email?: string | null;
   village_code: string;
+  address?: CustomerAddress | null;
+  address_formatted?: string | null;
   current_debt: number;
   credit_limit: number | null;
 }

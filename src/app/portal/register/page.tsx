@@ -2,39 +2,77 @@
  * Customer self-registration — open to anyone. Duplicate phone numbers
  * are rejected by the backend with a clear "please log in instead"
  * message rather than silently creating a second account.
+ *
+ * full_name, phone, gender, and address are mandatory; email/Aadhaar
+ * stay optional. Aadhaar QR scan/upload pre-fills name/gender/address,
+ * still fully editable before submitting.
  */
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
+import { PhoneInput } from "@/components/shared/PhoneInput";
+import { AddressFields } from "@/components/shared/AddressFields";
+import { AadhaarQRCapture, type AadhaarQRResult } from "@/components/shared/AadhaarQRCapture";
+import { VerifyButton } from "@/components/shared/VerifyButton";
 import { customerAuthService } from "@/services/customerAuthService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { toE164, PHONE_DIGIT_LENGTH } from "@/utils/phone";
+import { emptyAddress, type CustomerAddress } from "@/types/address";
+import type { Gender } from "@/types/customer";
+
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export default function RegisterPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [phoneDigits, setPhoneDigitsRaw] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [gender, setGender] = useState<Gender | "">("");
+  const [email, setEmailRaw] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
   const [villageCode, setVillageCode] = useState("");
+
+  function setPhoneDigits(v: string) {
+    setPhoneDigitsRaw(v);
+    setPhoneVerified(false); // a changed value invalidates any prior verification
+  }
+  function setEmail(v: string) {
+    setEmailRaw(v);
+    setEmailVerified(false);
+  }
+  const [address, setAddress] = useState<CustomerAddress>(emptyAddress());
   const [password, setPassword] = useState("");
   const [aadhaar, setAadhaar] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isDuplicatePhone, setIsDuplicatePhone] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  function handleAadhaarFetched(result: AadhaarQRResult) {
+    if (result.full_name) setFullName(result.full_name);
+    if (result.gender) setGender(result.gender);
+    if (result.address) setAddress((prev) => ({ ...prev, ...result.address }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setIsDuplicatePhone(false);
+    if (!gender) {
+      setError("कृपया लिंग चुनें / Please select a gender");
+      return;
+    }
     setBusy(true);
     try {
       await customerAuthService.register({
         full_name: fullName,
-        phone,
-        email,
+        phone: toE164(phoneDigits),
+        gender,
+        email: email || undefined,
         village_code: villageCode.toUpperCase(),
+        address,
         password,
         aadhaar_number: aadhaar || undefined,
       });
@@ -68,13 +106,15 @@ export default function RegisterPage() {
           background: colors.white,
           padding: spacing.xl,
           borderRadius: radii.tile,
-          width: "340px",
+          width: "380px",
           display: "flex",
           flexDirection: "column",
           gap: spacing.sm,
         }}
       >
         <BilingualLabel hi="नया खाता बनाएं" en="Create Account" size="heading" weight="bold" layout="stacked" />
+
+        <AadhaarQRCapture endpoint="/customer-auth/aadhaar-qr/decode" onFetched={handleAadhaarFetched} />
 
         <input
           type="text"
@@ -84,30 +124,52 @@ export default function RegisterPage() {
           required
           style={inputStyle}
         />
-        <input
-          type="tel"
-          placeholder="फ़ोन नंबर / Phone number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          required
-          style={inputStyle}
+        <PhoneInput value={phoneDigits} onChange={setPhoneDigits} required />
+        <VerifyButton
+          kind="phone"
+          value={toE164(phoneDigits)}
+          valid={phoneDigits.length === PHONE_DIGIT_LENGTH}
+          verified={phoneVerified}
+          onVerified={() => setPhoneVerified(true)}
         />
+        <select
+          value={gender}
+          onChange={(e) => setGender(e.target.value as Gender)}
+          required
+          style={{ ...inputStyle, color: gender ? colors.textPrimary : colors.textSecondary }}
+        >
+          <option value="" disabled>
+            लिंग चुनें / Select gender
+          </option>
+          <option value="male">पुरुष / Male</option>
+          <option value="female">महिला / Female</option>
+          <option value="other">अन्य / Other</option>
+        </select>
         <input
           type="email"
-          placeholder="ईमेल / Email (OTP यहीं भेजा जाएगा / OTP will be sent here)"
+          placeholder="ईमेल (वैकल्पिक) / Email (optional)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
           style={inputStyle}
         />
-        <input
-          type="text"
-          placeholder="गाँव कोड / Village code (e.g. RAMP)"
-          value={villageCode}
-          onChange={(e) => setVillageCode(e.target.value.toUpperCase())}
-          required
-          style={inputStyle}
+        {email.length > 0 && (
+          <VerifyButton
+            kind="email"
+            value={email}
+            valid={EMAIL_PATTERN.test(email)}
+            verified={emailVerified}
+            onVerified={() => setEmailVerified(true)}
+          />
+        )}
+
+        <BilingualLabel hi="पता" en="Address" weight="bold" size="tileLabel" />
+        <AddressFields
+          address={address}
+          onAddressChange={setAddress}
+          villageCode={villageCode}
+          onVillageCodeChange={setVillageCode}
         />
+
         <input
           type="password"
           placeholder="पासवर्ड / Password (min 6 characters)"

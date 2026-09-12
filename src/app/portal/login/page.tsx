@@ -9,16 +9,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
+import { PhoneInput } from "@/components/shared/PhoneInput";
 import { customerAuthService } from "@/services/customerAuthService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing, typography } from "@/theme/tokens";
+import { toE164 } from "@/utils/phone";
 
 type Mode = "otp-phone" | "otp-code" | "password";
 
 export default function PortalLoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("otp-phone");
-  const [phone, setPhone] = useState("");
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function PortalLoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await customerAuthService.requestOtp(phone);
+      await customerAuthService.requestOtp(toE164(phoneDigits));
       setMode("otp-code");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "त्रुटि / Error");
@@ -43,7 +45,7 @@ export default function PortalLoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await customerAuthService.verifyOtp(phone, otpCode);
+      await customerAuthService.verifyOtp(toE164(phoneDigits), otpCode);
       router.push("/portal");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "गलत OTP / Incorrect OTP");
@@ -57,7 +59,7 @@ export default function PortalLoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await customerAuthService.passwordLogin(phone, password);
+      await customerAuthService.passwordLogin(toE164(phoneDigits), password);
       router.push("/portal");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "त्रुटि / Error");
@@ -115,7 +117,7 @@ export default function PortalLoginPage() {
         {mode === "otp-phone" && (
           <>
             <BilingualLabel hi="फ़ोन नंबर डालें" en="Enter your phone number" size="tileLabel" />
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" required style={inputStyle} />
+            <PhoneInput value={phoneDigits} onChange={setPhoneDigits} required />
             <p style={{ fontSize: "0.8rem", color: colors.textSecondary, margin: 0 }}>
               OTP आपके पंजीकृत ईमेल पर भेजा जाएगा / OTP will be sent to your registered email
             </p>
@@ -124,14 +126,14 @@ export default function PortalLoginPage() {
 
         {mode === "otp-code" && (
           <>
-            <BilingualLabel hi="OTP डालें" en={`Enter the OTP emailed for ${phone}`} size="tileLabel" />
+            <BilingualLabel hi="OTP डालें" en={`Enter the OTP emailed for +91${phoneDigits}`} size="tileLabel" />
             <input type="text" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="000000" required style={inputStyle} />
           </>
         )}
 
         {mode === "password" && (
           <>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="फ़ोन / Phone" required style={inputStyle} />
+            <PhoneInput value={phoneDigits} onChange={setPhoneDigits} required style={{ marginBottom: 0 }} />
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="पासवर्ड / Password" required style={inputStyle} />
           </>
         )}

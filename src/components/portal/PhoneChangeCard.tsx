@@ -6,14 +6,16 @@
  */
 import { useState } from "react";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
+import { PhoneInput } from "@/components/shared/PhoneInput";
 import { portalService } from "@/services/portalService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing } from "@/theme/tokens";
+import { toE164, formatPhoneForDisplay } from "@/utils/phone";
 
 export function PhoneChangeCard({ currentPhone, onChanged }: { currentPhone: string; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [newPhone, setNewPhone] = useState("");
+  const [newPhoneDigits, setNewPhoneDigits] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,7 +24,7 @@ export function PhoneChangeCard({ currentPhone, onChanged }: { currentPhone: str
     setError(null);
     setBusy(true);
     try {
-      await portalService.requestPhoneChangeOtp(newPhone);
+      await portalService.requestPhoneChangeOtp(toE164(newPhoneDigits));
       setStep("otp");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "त्रुटि / Error");
@@ -35,10 +37,10 @@ export function PhoneChangeCard({ currentPhone, onChanged }: { currentPhone: str
     setError(null);
     setBusy(true);
     try {
-      await portalService.confirmPhoneChange(newPhone, otpCode);
+      await portalService.confirmPhoneChange(toE164(newPhoneDigits), otpCode);
       setOpen(false);
       setStep("phone");
-      setNewPhone("");
+      setNewPhoneDigits("");
       setOtpCode("");
       onChanged();
     } catch (err) {
@@ -51,7 +53,7 @@ export function PhoneChangeCard({ currentPhone, onChanged }: { currentPhone: str
   if (!open) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm }}>
-        <span style={{ color: colors.textSecondary }}>{currentPhone}</span>
+        <span style={{ color: colors.textSecondary }}>{formatPhoneForDisplay(currentPhone)}</span>
         <button
           onClick={() => setOpen(true)}
           style={{ border: "none", background: "none", color: colors.sevaTeal, fontWeight: 700, cursor: "pointer" }}
@@ -70,13 +72,7 @@ export function PhoneChangeCard({ currentPhone, onChanged }: { currentPhone: str
       </p>
       {step === "phone" ? (
         <div style={{ display: "flex", gap: spacing.sm, marginTop: spacing.sm }}>
-          <input
-            type="tel"
-            placeholder="नया नंबर / New number"
-            value={newPhone}
-            onChange={(e) => setNewPhone(e.target.value)}
-            style={{ flex: 1, padding: spacing.sm, borderRadius: radii.button, border: `1px solid ${colors.border}` }}
-          />
+          <PhoneInput value={newPhoneDigits} onChange={setNewPhoneDigits} style={{ flex: 1 }} />
           <button onClick={handleRequestOtp} disabled={busy} style={confirmButtonStyle}>
             OTP भेजें / Send
           </button>

@@ -9,6 +9,7 @@ import { BilingualLabel } from "@/components/ui/BilingualLabel";
 import { khataService } from "@/services/khataService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing } from "@/theme/tokens";
+import { formatPhoneForDisplay } from "@/utils/phone";
 import type { CustomerStatement } from "@/types/khata";
 
 export type StatementPanelProps = {
@@ -56,8 +57,15 @@ export function StatementPanel({ statement, onRefresh }: StatementPanelProps) {
 
   return (
     <div style={{ background: colors.white, borderRadius: radii.tile, padding: spacing.lg }}>
-      <BilingualLabel hi={customer.full_name} en={customer.customer_id} size="heading" weight="bold" layout="stacked" />
-      <p style={{ color: colors.textSecondary }}>गाँव / Village: {customer.village_code} · {customer.phone}</p>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+        <BilingualLabel hi={customer.full_name} en={customer.customer_id} size="heading" weight="bold" layout="stacked" />
+        {customer.verified && (
+          <span title="Verified customer" style={{ color: colors.success, fontSize: "1rem", fontWeight: 700 }}>
+            ✓
+          </span>
+        )}
+      </span>
+      <p style={{ color: colors.textSecondary }}>गाँव / Village: {customer.village_code} · {formatPhoneForDisplay(customer.phone)}</p>
 
       <div style={{ display: "flex", gap: spacing.lg, margin: `${spacing.md} 0` }}>
         <div>

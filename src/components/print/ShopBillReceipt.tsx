@@ -16,11 +16,14 @@
  * item rows as the order actually has (not a fixed 10 blank rows).
  *
  * Kept from the earlier version: payment status (Paid/Balance Due) and
- * the payment QR when there's a balance due — the reference template
- * has no place for this since it's a generic hand-fill form that
- * doesn't handle credit sales, but it's core to how khata actually
- * gets collected here. Still easy to remove if you'd rather match the
- * reference exactly with no payment info printed.
+ * the payment QR — shown either for an outstanding balance (SPLIT/
+ * CREDIT) or for a full payment made via UPI, so there's always
+ * something to actually scan when UPI is involved, not just when money
+ * is still owed. The reference template has no place for any of this
+ * since it's a generic hand-fill form that doesn't handle credit sales
+ * or UPI at all, but it's core to how this system actually collects
+ * payment. Still easy to remove if you'd rather match the reference
+ * exactly with no payment info printed.
  *
  * Logo file: frontend/public/shop-logo.png (extracted directly from
  * the reference document) — swap this file to update the printed logo
@@ -29,6 +32,7 @@
 import { useEffect, useState } from "react";
 import { shopProfileService, type ShopProfile } from "@/services/shopProfileService";
 import { formatDateTime } from "@/utils/dateFormat";
+import { formatPhoneForDisplay } from "@/utils/phone";
 import type { Order } from "@/types/order";
 import type { CustomerSummary } from "@/types/customer";
 
@@ -53,9 +57,9 @@ export function ShopBillReceipt({ order, customer }: ShopBillReceiptProps) {
   }, []);
 
   const customerName = customer?.full_name ?? "Walk-in Customer / अनाम ग्राहक";
-  const customerAddress = customer?.address || customer?.village_code || "—";
-  const addressLabel = customer?.address ? "Address" : "Village";
-  const customerContact = customer?.phone ?? "—";
+  const customerAddress = customer?.address_formatted || customer?.village_code || "—";
+  const addressLabel = customer?.address_formatted ? "Address" : "Village";
+  const customerContact = formatPhoneForDisplay(customer?.phone);
 
   return (
     <div
@@ -174,10 +178,15 @@ export function ShopBillReceipt({ order, customer }: ShopBillReceiptProps) {
         </div>
       </div>
 
-      {/* Payment QR — only when there's a balance due */}
+      {/* Payment QR — shown for outstanding debt (SPLIT/CREDIT) OR a
+          full UPI payment. The label has to differ: "pay your balance"
+          would be wrong/confusing on an order already marked PAID in
+          full via UPI, where there's no balance left at all. */}
       {order.upi_qr_image && (
         <div style={{ textAlign: "center", padding: "0 20px 14px" }}>
-          <div style={{ fontSize: "0.85rem", marginBottom: "4px" }}>Scan to Pay Balance</div>
+          <div style={{ fontSize: "0.85rem", marginBottom: "4px" }}>
+            {order.debt_added > 0 ? "Scan to Pay Balance" : `Scan to Pay ₹${order.net_total.toFixed(2)} via UPI`}
+          </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={order.upi_qr_image} alt="UPI QR" style={{ width: "110px", height: "110px" }} />
         </div>

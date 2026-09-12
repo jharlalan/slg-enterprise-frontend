@@ -11,10 +11,18 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
+import { PhoneInput } from "@/components/shared/PhoneInput";
+import { AddressFields } from "@/components/shared/AddressFields";
+import { AadhaarQRCapture, type AadhaarQRResult } from "@/components/shared/AadhaarQRCapture";
+import { VerifyButton } from "@/components/shared/VerifyButton";
 import { customerService } from "@/services/customerService";
 import { ApiError } from "@/services/apiClient";
 import { colors, radii, spacing } from "@/theme/tokens";
-import type { CustomerSummary } from "@/types/customer";
+import { toE164, formatPhoneForDisplay, PHONE_DIGIT_LENGTH } from "@/utils/phone";
+import { emptyAddress, type CustomerAddress } from "@/types/address";
+import type { CustomerSummary, Gender } from "@/types/customer";
+
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export type CustomerSelectionStepProps = {
   onSelect: (customer: CustomerSummary) => void;
@@ -87,9 +95,16 @@ export function CustomerSelectionStep({ onSelect, onAnonymous }: CustomerSelecti
                     cursor: "pointer",
                   }}
                 >
-                  <div style={{ fontWeight: 700 }}>{customer.full_name}</div>
+                  <div style={{ fontWeight: 700 }}>
+                    {customer.full_name}
+                    {customer.verified && (
+                      <span title="Verified customer" style={{ color: colors.success, marginLeft: "6px" }}>
+                        ✓
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: "0.85rem", color: colors.textSecondary }}>
-                    {customer.customer_id} · {customer.phone} · {customer.village_code}
+                    {customer.customer_id} · {formatPhoneForDisplay(customer.phone)} · {customer.village_code}
                     {customer.current_debt > 0 && (
                       <span style={{ color: colors.danger }}> · बकाया/Due: ₹{customer.current_debt.toFixed(2)}</span>
                     )}
@@ -123,22 +138,47 @@ function NewCustomerForm({
   onCancel: () => void;
 }) {
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneDigits, setPhoneDigitsRaw] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [gender, setGender] = useState<Gender | "">("");
+  const [email, setEmailRaw] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
   const [villageCode, setVillageCode] = useState("");
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState<CustomerAddress>(emptyAddress());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  function setPhoneDigits(v: string) {
+    setPhoneDigitsRaw(v);
+    setPhoneVerified(false); // a changed value invalidates any prior verification
+  }
+  function setEmail(v: string) {
+    setEmailRaw(v);
+    setEmailVerified(false);
+  }
+
+  function handleAadhaarFetched(result: AadhaarQRResult) {
+    if (result.full_name) setFullName(result.full_name);
+    if (result.gender) setGender(result.gender);
+    if (result.address) setAddress((prev) => ({ ...prev, ...result.address }));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!gender) {
+      setError("कृपया लिंग चुनें / Please select a gender");
+      return;
+    }
     setSaving(true);
     try {
       const customer = await customerService.quickCreate({
         full_name: fullName,
-        phone,
+        phone: toE164(phoneDigits),
+        gender,
         village_code: villageCode.toUpperCase(),
-        address: address || undefined,
+        address,
+        email: email || undefined,
       });
       onCreated(customer);
     } catch (err) {
@@ -150,6 +190,8 @@ function NewCustomerForm({
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: spacing.sm, marginTop: spacing.md }}>
+      <AadhaarQRCapture endpoint="/customers/aadhaar-qr/decode" onFetched={handleAadhaarFetched} />
+
       <input
         type="text"
         placeholder="पूरा नाम / Full name"
@@ -158,28 +200,49 @@ function NewCustomerForm({
         required
         style={inputStyle}
       />
-      <input
-        type="tel"
-        placeholder="फ़ोन नंबर / Phone number"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        required
-        style={inputStyle}
+      <PhoneInput value={phoneDigits} onChange={setPhoneDigits} required />
+      <VerifyButton
+        kind="phone"
+        value={toE164(phoneDigits)}
+        valid={phoneDigits.length === PHONE_DIGIT_LENGTH}
+        verified={phoneVerified}
+        onVerified={() => setPhoneVerified(true)}
       />
-      <input
-        type="text"
-        placeholder="गाँव कोड / Village code (e.g. RAMP)"
-        value={villageCode}
-        onChange={(e) => setVillageCode(e.target.value.toUpperCase())}
+      <select
+        value={gender}
+        onChange={(e) => setGender(e.target.value as Gender)}
         required
-        style={inputStyle}
-      />
+        style={{ ...inputStyle, marginTop: spacing.sm, color: gender ? colors.textPrimary : colors.textSecondary }}
+      >
+        <option value="" disabled>
+          लिंग चुनें / Select gender
+        </option>
+        <option value="male">पुरुष / Male</option>
+        <option value="female">महिला / Female</option>
+        <option value="other">अन्य / Other</option>
+      </select>
       <input
-        type="text"
-        placeholder="पूरा पता (वैकल्पिक) / Full address (optional)"
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-        style={inputStyle}
+        type="email"
+        placeholder="ईमेल (वैकल्पिक) / Email (optional)"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ ...inputStyle, marginTop: spacing.sm }}
+      />
+      {email.length > 0 && (
+        <VerifyButton
+          kind="email"
+          value={email}
+          valid={EMAIL_PATTERN.test(email)}
+          verified={emailVerified}
+          onVerified={() => setEmailVerified(true)}
+        />
+      )}
+
+      <AddressFields
+        address={address}
+        onAddressChange={setAddress}
+        villageCode={villageCode}
+        onVillageCodeChange={setVillageCode}
       />
 
       {error && (

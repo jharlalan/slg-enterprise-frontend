@@ -60,7 +60,7 @@ function AddProductModal({
   onAddProduct,
   onClose,
 }: AddProductLauncherProps & { onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<Tab>("barcode");
+  const [activeTab, setActiveTab] = useState<Tab>("search");
 
   return (
     <div style={overlayStyle}>
@@ -73,10 +73,10 @@ function AddProductModal({
         </div>
 
         <div style={{ display: "flex", gap: spacing.xs, marginTop: spacing.md, flexWrap: "wrap" }}>
+          <TabButton label="🔍 खोजें / Search" active={activeTab === "search"} onClick={() => setActiveTab("search")} />
           <TabButton label="बारकोड / Barcode" active={activeTab === "barcode"} onClick={() => setActiveTab("barcode")} />
           <TabButton label="📷 कैमरा / Camera" active={activeTab === "camera"} onClick={() => setActiveTab("camera")} />
           <TabButton label="📁 अपलोड / Upload" active={activeTab === "upload"} onClick={() => setActiveTab("upload")} />
-          <TabButton label="🔍 खोजें / Search" active={activeTab === "search"} onClick={() => setActiveTab("search")} />
         </div>
 
         <div style={{ marginTop: spacing.md, minHeight: "220px" }}>
@@ -339,6 +339,7 @@ function SearchTab({ onAddProduct, onDone }: { onAddProduct: (product: Product) 
   const [results, setResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addedName, setAddedName] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -365,6 +366,20 @@ function SearchTab({ onAddProduct, onDone }: { onAddProduct: (product: Product) 
     };
   }, [searchTerm]);
 
+  if (addedName) {
+    return (
+      <SuccessPrompt
+        productName={addedName}
+        onAddMore={() => {
+          setAddedName(null);
+          setSearchTerm("");
+          setResults([]);
+        }}
+        onDone={onDone}
+      />
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
       <BilingualLabel hi="कम से कम 3 अक्षर लिखें" en="Type at least 3 characters" size="body" />
@@ -385,7 +400,7 @@ function SearchTab({ onAddProduct, onDone }: { onAddProduct: (product: Product) 
             key={product.id}
             onClick={() => {
               onAddProduct(product);
-              onDone();
+              setAddedName(product.name);
             }}
             style={{
               display: "block",

@@ -68,11 +68,10 @@ export function ProfileBadge() {
   function handleLogout() {
     if (isCustomer) {
       customerAuthService.logout();
-      window.location.href = "/portal/login";
     } else {
       authService.logout();
-      window.location.href = "/login";
     }
+    window.location.href = "/";
   }
 
   const primaryRole = roles[0] ?? "";

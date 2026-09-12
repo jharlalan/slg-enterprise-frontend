@@ -36,7 +36,11 @@ export function AppHeader() {
     >
       <a
         href="/"
+        aria-label="Home"
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: spacing.sm,
           fontFamily: typography.fontFamilyCombined,
           fontWeight: typography.weight.bold,
           fontSize: "1.1rem",
@@ -44,6 +48,7 @@ export function AppHeader() {
           textDecoration: "none",
         }}
       >
+        <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>🏠</span>
         SLG Enterprise
       </a>
       <ProfileBadge />

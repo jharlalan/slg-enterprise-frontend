@@ -1,13 +1,17 @@
 import { apiClient } from "@/services/apiClient";
-import type { CustomerSummary } from "@/types/customer";
+import type { CustomerSummary, Gender } from "@/types/customer";
+import type { CustomerAddress } from "@/types/address";
 
 type ApiEnvelope<T> = { success: true; data: T };
 
 export interface QuickCreateCustomerPayload {
   full_name: string;
   phone: string;
+  gender: Gender;
   village_code: string;
-  address?: string;
+  address: CustomerAddress;
+  email?: string;
+  aadhaar_number?: string;
 }
 
 export const customerService = {

@@ -1,5 +1,7 @@
 import { apiClient } from "@/services/apiClient";
 import { tokenStorage } from "@/services/tokenStorage";
+import type { Gender } from "@/types/customer";
+import type { CustomerAddress } from "@/types/address";
 
 interface CustomerLoginResponse {
   access_token: string;
@@ -11,8 +13,10 @@ interface CustomerLoginResponse {
 export interface RegisterPayload {
   full_name: string;
   phone: string;
-  email: string;
+  gender: Gender;
+  email?: string;
   village_code: string;
+  address: CustomerAddress;
   password: string;
   aadhaar_number?: string;
 }
